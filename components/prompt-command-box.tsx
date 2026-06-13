@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { Sparkles, Zap, ShieldCheck, Loader2 } from "lucide-react"
+import { useWallets } from "@privy-io/react-auth"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -15,9 +16,17 @@ export function PromptCommandBox() {
   const [running, setRunning] = useState(false)
   const [showInvoice, setShowInvoice] = useState(false)
 
+  const { wallets } = useWallets()
+  const ownerWallet = wallets[0]?.address
+
   async function runAgent() {
     if (!prompt.trim()) {
       toast.error("Enter a prompt for the agent to run.")
+      return
+    }
+
+    if (!ownerWallet) {
+      toast.error("Connect wallet first.")
       return
     }
 
@@ -32,7 +41,8 @@ export function PromptCommandBox() {
         },
         body: JSON.stringify({
           message: prompt,
-          userId: "demo-user",
+          userId: ownerWallet,
+          walletAddress: ownerWallet,
         }),
       })
 
@@ -62,7 +72,9 @@ export function PromptCommandBox() {
         id: "agent",
       })
 
-      const pendingRes = await fetch("/api/payments/pending?userId=demo-user")
+      const pendingRes = await fetch(
+        `/api/payments/pending?userId=${encodeURIComponent(ownerWallet)}`
+      )
       const pendingData = await pendingRes.json()
       const payment = pendingData.payment
 
