@@ -19,6 +19,7 @@ import {
   Copy,
   ChevronDown,
   Loader2,
+  BotMessageSquare,
 } from "lucide-react"
 import { usePrivy, useWallets } from "@privy-io/react-auth"
 import { toast } from "sonner"
@@ -42,6 +43,7 @@ const navItems = [
   { href: "/dashboard/bills", label: "Bills", icon: ReceiptText },
   { href: "/dashboard/payments", label: "Payments", icon: ArrowLeftRight },
   { href: "/dashboard/receipts", label: "Receipts", icon: ScrollText },
+  { href: "/dashboard/agent-logs", label: "Agent Logs", icon: BotMessageSquare },
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
 ]
 
