@@ -13,6 +13,9 @@ export async function GET() {
 
   return NextResponse.json({
     success: true,
-    payments,
+    payments: payments.map((p) => ({
+      ...p,
+      _id: p._id.toString(),
+    })),
   })
 }

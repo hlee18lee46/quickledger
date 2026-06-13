@@ -1,10 +1,10 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { AppShell } from "@/components/app-shell"
 import { PageHeader } from "@/components/page-header"
 import { PaymentApprovalCard } from "@/components/payment-approval-card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { payments } from "@/lib/mock-data"
 import type { Payment } from "@/lib/types"
 
 function PaymentGrid({ items }: { items: Payment[] }) {
@@ -15,6 +15,7 @@ function PaymentGrid({ items }: { items: Payment[] }) {
       </p>
     )
   }
+
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
       {items.map((p) => (
@@ -25,6 +26,35 @@ function PaymentGrid({ items }: { items: Payment[] }) {
 }
 
 export default function PaymentsPage() {
+  const [payments, setPayments] = useState<Payment[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    async function loadPayments() {
+      try {
+        const res = await fetch("/api/payments")
+        if (!res.ok) {
+          throw new Error("Failed to load payments")
+        }
+
+const data = await res.json()
+
+const mapped: Payment[] = data.payments.map((p: any) => ({
+  ...p,
+  id: p._id,
+}))
+
+        setPayments(mapped)
+      } catch (err) {
+        console.error(err)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadPayments()
+  }, [])
+
   const incoming = payments.filter((p) => p.type === "incoming")
   const outgoing = payments.filter((p) => p.type === "outgoing")
 
@@ -36,22 +66,29 @@ export default function PaymentsPage() {
           description="Crypto payments in and out of your wallet. Outgoing transfers require Ledger approval."
         />
 
-        <Tabs defaultValue="all" className="gap-4">
-          <TabsList>
-            <TabsTrigger value="all">All</TabsTrigger>
-            <TabsTrigger value="outgoing">Outgoing</TabsTrigger>
-            <TabsTrigger value="incoming">Incoming</TabsTrigger>
-          </TabsList>
-          <TabsContent value="all">
-            <PaymentGrid items={payments} />
-          </TabsContent>
-          <TabsContent value="outgoing">
-            <PaymentGrid items={outgoing} />
-          </TabsContent>
-          <TabsContent value="incoming">
-            <PaymentGrid items={incoming} />
-          </TabsContent>
-        </Tabs>
+        {loading ? (
+          <p className="text-sm text-muted-foreground">Loading payments...</p>
+        ) : (
+          <Tabs defaultValue="all" className="gap-4">
+            <TabsList>
+              <TabsTrigger value="all">All</TabsTrigger>
+              <TabsTrigger value="outgoing">Outgoing</TabsTrigger>
+              <TabsTrigger value="incoming">Incoming</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="all">
+              <PaymentGrid items={payments} />
+            </TabsContent>
+
+            <TabsContent value="outgoing">
+              <PaymentGrid items={outgoing} />
+            </TabsContent>
+
+            <TabsContent value="incoming">
+              <PaymentGrid items={incoming} />
+            </TabsContent>
+          </Tabs>
+        )}
       </div>
     </AppShell>
   )

@@ -104,7 +104,7 @@ export function ContactsTable({
           </TableHeader>
           <TableBody>
             {filtered.map((c) => (
-              <TableRow key={c.id}>
+              <TableRow key={c.id || c._id}>
                 <TableCell className="font-medium text-foreground">{c.name}</TableCell>
                 <TableCell className="text-muted-foreground">{c.email}</TableCell>
                 <TableCell>
