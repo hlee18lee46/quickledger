@@ -15,7 +15,7 @@ export function RecentActivity() {
   return (
     <Card className="border-border">
       <CardHeader>
-        <CardTitle className="text-base">Recent activity</CardTitle>
+        <CardTitle className="text-base">What QuickLedgerBooks does</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-1">
         {agentActions.map((action) => {

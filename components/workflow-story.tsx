@@ -1,7 +1,7 @@
 import { Zap, Sparkles, ShieldCheck, ArrowRight } from "lucide-react"
 
 const steps = [
-  { icon: Zap, title: "Blink funds the wallet", desc: "Deposit crypto into your business wallet." },
+  { icon: Zap, title: "Gemma & Langchain Agent", desc: "Turns natural language into actions." },
   { icon: Sparkles, title: "AI prepares the workflow", desc: "Prompts become invoices, bills & payments." },
   { icon: ShieldCheck, title: "Ledger approves payments", desc: "Outgoing transfers signed on your device." },
 ]
