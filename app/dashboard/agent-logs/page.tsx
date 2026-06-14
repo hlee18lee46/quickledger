@@ -5,17 +5,39 @@ import { useWallets } from "@privy-io/react-auth"
 import { AppShell } from "@/components/app-shell"
 import { PageHeader } from "@/components/page-header"
 
+type AgentReply =
+  | string
+  | {
+      reply?: string
+      tools?: any[]
+      [key: string]: any
+    }
+
 type AgentLog = {
   _id: string
   userId: string
   walletAddress: string
   message: string
-  reply: string
+  reply: AgentReply
   createdAt: string
 }
 
 function formatDate(value: string) {
   return new Date(value).toLocaleString()
+}
+
+function formatReply(reply: AgentReply) {
+  if (!reply) return ""
+
+  if (typeof reply === "string") {
+    return reply
+  }
+
+  if (typeof reply === "object") {
+    return reply.reply || JSON.stringify(reply, null, 2)
+  }
+
+  return String(reply)
 }
 
 function AgentLogGrid({ items }: { items: AgentLog[] }) {
@@ -29,40 +51,60 @@ function AgentLogGrid({ items }: { items: AgentLog[] }) {
 
   return (
     <div className="grid grid-cols-1 gap-4">
-      {items.map((log) => (
-        <div
-          key={log._id}
-          className="rounded-xl border border-border bg-card p-5 shadow-sm"
-        >
-          <div className="mb-4 border-b border-border pb-3">
-            <p className="text-xs text-muted-foreground">
-              {formatDate(log.createdAt)}
-            </p>
-          </div>
+      {items.map((log) => {
+        const responseText = formatReply(log.reply)
+        const tools =
+          typeof log.reply === "object" && Array.isArray(log.reply.tools)
+            ? log.reply.tools
+            : []
 
-          <div className="space-y-4">
-            <div>
-              <p className="mb-2 text-xs font-medium uppercase text-muted-foreground">
-                Prompt
+        return (
+          <div
+            key={log._id}
+            className="rounded-xl border border-border bg-card p-5 shadow-sm"
+          >
+            <div className="mb-4 border-b border-border pb-3">
+              <p className="text-xs text-muted-foreground">
+                {formatDate(log.createdAt)}
               </p>
-
-              <div className="rounded-lg bg-muted p-3 text-sm">
-                {log.message}
-              </div>
             </div>
 
-            <div>
-              <p className="mb-2 text-xs font-medium uppercase text-muted-foreground">
-                Agent Response
-              </p>
+            <div className="space-y-4">
+              <div>
+                <p className="mb-2 text-xs font-medium uppercase text-muted-foreground">
+                  Prompt
+                </p>
 
-              <div className="rounded-lg bg-muted p-3 text-sm whitespace-pre-wrap">
-                {log.reply}
+                <div className="rounded-lg bg-muted p-3 text-sm">
+                  {log.message}
+                </div>
               </div>
+
+              <div>
+                <p className="mb-2 text-xs font-medium uppercase text-muted-foreground">
+                  Agent Response
+                </p>
+
+                <div className="rounded-lg bg-muted p-3 text-sm whitespace-pre-wrap">
+                  {responseText}
+                </div>
+              </div>
+
+              {tools.length > 0 && (
+                <div>
+                  <p className="mb-2 text-xs font-medium uppercase text-muted-foreground">
+                    Tools
+                  </p>
+
+                  <div className="rounded-lg bg-muted p-3 text-xs font-mono whitespace-pre-wrap">
+                    {JSON.stringify(tools, null, 2)}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
-        </div>
-      ))}
+        )
+      })}
     </div>
   )
 }
@@ -77,13 +119,13 @@ export default function AgentLogsPage() {
 
   useEffect(() => {
     async function loadLogs() {
-      if (!address) return
+      if (!address) {
+        setLoading(false)
+        return
+      }
 
       try {
-        const res = await fetch(
-          `/api/agent-logs?walletAddress=${address}`,
-        )
-
+        const res = await fetch(`/api/agent-logs?walletAddress=${address}`)
         const data = await res.json()
 
         setLogs(data.logs || [])
