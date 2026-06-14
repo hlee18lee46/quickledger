@@ -16,22 +16,8 @@ async function generateReceiptPdf(payment: any, receiptId: string) {
   let y = 740
 
   function line(label: string, value: string) {
-    page.drawText(label, {
-      x: 50,
-      y,
-      size: 11,
-      font: bold,
-      color: rgb(0, 0, 0),
-    })
-
-    page.drawText(value || "N/A", {
-      x: 190,
-      y,
-      size: 11,
-      font,
-      color: rgb(0.15, 0.15, 0.15),
-    })
-
+    page.drawText(label, { x: 50, y, size: 11, font: bold, color: rgb(0, 0, 0) })
+    page.drawText(value || "N/A", { x: 190, y, size: 11, font, color: rgb(0.15, 0.15, 0.15) })
     y -= 24
   }
 
@@ -119,12 +105,7 @@ async function sendReceiptEmail({
     to,
     subject,
     text,
-    attachments: [
-      {
-        filename,
-        path: filePath,
-      },
-    ],
+    attachments: [{ filename, path: filePath }],
   })
 
   console.log("📧 Email accepted:", info.accepted)
@@ -147,7 +128,6 @@ export async function PATCH(req: Request) {
 
     const client = await clientPromise
     const db = client.db("quickledgerbooks")
-
     const paymentObjectId = new ObjectId(paymentId)
 
     await db.collection("payments").updateOne(
@@ -184,6 +164,7 @@ export async function PATCH(req: Request) {
         payment,
         receipt: existingReceipt,
         emailSent: existingReceipt.emailSent,
+        emailError: existingReceipt.emailError || "",
         message: "Payment confirmed. Receipt already exists.",
       })
     }
@@ -195,26 +176,7 @@ export async function PATCH(req: Request) {
 
     const receiptId = new ObjectId().toString()
     const pdf = await generateReceiptPdf(payment, receiptId)
-
     const emailTo = merchant?.email || ""
-    let emailSent = false
-
-    if (emailTo) {
-      emailSent = await sendReceiptEmail({
-        to: emailTo,
-        subject: `Receipt for ${payment.amount} ${payment.currency} payment`,
-        text:
-          `Attached is your QuickLedgerBooks receipt.\n\n` +
-          `Merchant: ${payment.counterpartyName}\n` +
-          `ENS: ${payment.ensName || "N/A"}\n` +
-          `Amount: ${payment.amount} ${payment.currency}\n` +
-          `Tx Hash: ${payment.txHash}\n`,
-        filePath: pdf.filePath,
-        filename: pdf.filename,
-      })
-    } else {
-      console.log("No merchant email found. Receipt saved but not emailed.")
-    }
 
     const receipt = {
       _id: new ObjectId(receiptId),
@@ -230,17 +192,60 @@ export async function PATCH(req: Request) {
       fromWallet: payment.fromWallet || "",
       pdfUrl: pdf.pdfUrl,
       emailTo,
-      emailSent,
+      emailSent: false,
+      emailError: "",
       createdAt: new Date(),
     }
 
-    await db.collection("receipts").insertOne(receipt)
+    const insertResult = await db.collection("receipts").insertOne(receipt)
+    console.log("✅ Receipt inserted:", insertResult.insertedId.toString())
+
+    let emailSent = false
+    let emailError = ""
+
+    if (emailTo) {
+      try {
+        emailSent = await sendReceiptEmail({
+          to: emailTo,
+          subject: `Receipt for ${payment.amount} ${payment.currency} payment`,
+          text:
+            `Attached is your QuickLedgerBooks receipt.\n\n` +
+            `Merchant: ${payment.counterpartyName}\n` +
+            `ENS: ${payment.ensName || "N/A"}\n` +
+            `Amount: ${payment.amount} ${payment.currency}\n` +
+            `Tx Hash: ${payment.txHash}\n`,
+          filePath: pdf.filePath,
+          filename: pdf.filename,
+        })
+      } catch (err: any) {
+        emailSent = false
+        emailError = err?.message || "Email failed"
+        console.error("❌ Receipt email failed:", emailError)
+      }
+
+      await db.collection("receipts").updateOne(
+        { _id: receipt._id },
+        {
+          $set: {
+            emailSent,
+            emailError,
+            emailedAt: new Date(),
+          },
+        },
+      )
+
+      receipt.emailSent = emailSent
+      receipt.emailError = emailError
+    } else {
+      console.log("No merchant email found. Receipt saved but not emailed.")
+    }
 
     return NextResponse.json({
       success: true,
       payment,
       receipt,
       emailSent,
+      emailError,
     })
   } catch (error: any) {
     console.error("Confirm payment failed:", error)

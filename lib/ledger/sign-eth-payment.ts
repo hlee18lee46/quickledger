@@ -40,8 +40,11 @@ export async function signAndBroadcastEthPaymentWithLedger({
     })
 
     const unsignedTxHex = tx.unsignedSerialized.replace(/^0x/, "")
-    const sig = await eth.signTransaction(LEDGER_ETH_PATH, unsignedTxHex)
-
+const sig = await eth.signTransaction(
+  LEDGER_ETH_PATH,
+  unsignedTxHex,
+  null
+)
     tx.signature = {
       r: `0x${sig.r}`,
       s: `0x${sig.s}`,
