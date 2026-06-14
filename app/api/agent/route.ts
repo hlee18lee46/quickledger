@@ -10,26 +10,34 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Missing message" }, { status: 400 })
     }
 
-    const safeUserId = userId || "demo-user"
+    if (!userId) {
+      return NextResponse.json({ error: "Missing userId" }, { status: 400 })
+    }
 
-    const reply = await runQuickLedgerAgent({
+    const agentResult = await runQuickLedgerAgent({
       message,
-      userId: safeUserId,
+      userId,
       walletAddress,
     })
 
+    const reply = agentResult.reply || "Action completed successfully."
+    const tools = agentResult.tools || []
+
     const client = await clientPromise
+
     await client.db("quickledgerbooks").collection("agent_logs").insertOne({
-      userId: safeUserId,
+      userId,
       walletAddress: walletAddress || "",
       message,
       reply,
+      tools,
       createdAt: new Date(),
     })
 
     return NextResponse.json({
       success: true,
       reply,
+      tools,
     })
   } catch (error) {
     console.error("QuickLedgerBooks agent error:", error)
@@ -39,7 +47,7 @@ export async function POST(req: Request) {
         success: false,
         error: "QuickLedgerBooks agent failed.",
       },
-      { status: 500 }
+      { status: 500 },
     )
   }
 }

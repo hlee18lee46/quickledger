@@ -10,7 +10,7 @@ async function getDb() {
 
 export function createMerchantTools(context: ToolContext) {
   const saveMerchant = tool(
-    async ({ name, email, walletAddress, notes }) => {
+    async ({ name, email, ensName, walletAddress, notes }) => {
       const db = await getDb()
 
       const existingMerchant = await db.collection("merchants").findOne({
@@ -30,6 +30,7 @@ export function createMerchantTools(context: ToolContext) {
         userId: context.userId,
         name,
         email: email || "",
+        ensName: ensName || "",
         walletAddress: walletAddress || "",
         notes: notes || "",
         createdAt: new Date(),
@@ -47,10 +48,11 @@ export function createMerchantTools(context: ToolContext) {
     {
       name: "save_merchant",
       description:
-        "Save a merchant/vendor that the user pays. Stores wallet address and contact information.",
+        "Save a merchant/vendor that the user pays. Stores ENS name, wallet address, and contact information.",
       schema: z.object({
         name: z.string(),
         email: z.string().optional(),
+        ensName: z.string().optional(),
         walletAddress: z.string().optional(),
         notes: z.string().optional(),
       }),
@@ -82,6 +84,7 @@ export function createMerchantTools(context: ToolContext) {
           id: merchant._id,
           name: merchant.name,
           email: merchant.email,
+          ensName: merchant.ensName || "",
           walletAddress: merchant.walletAddress,
           notes: merchant.notes,
         },
@@ -90,7 +93,7 @@ export function createMerchantTools(context: ToolContext) {
     {
       name: "find_merchant_by_name",
       description:
-        "Find a saved merchant by name and return wallet address and contact information. Use this before preparing a payment when the user refers to a merchant by name.",
+        "Find a saved merchant by name and return ENS name, wallet address, and contact information. Use this before preparing a payment when the user refers to a merchant by name.",
       schema: z.object({
         merchantName: z.string(),
       }),
@@ -115,20 +118,17 @@ export function createMerchantTools(context: ToolContext) {
           id: m._id,
           name: m.name,
           email: m.email,
+          ensName: m.ensName || "",
           walletAddress: m.walletAddress,
         })),
       })
     },
     {
       name: "list_merchants",
-      description: "List all saved merchants/vendors.",
+      description: "List all saved merchants/vendors with ENS names and wallet addresses.",
       schema: z.object({}),
     }
   )
 
-  return [
-    saveMerchant,
-    findMerchantByName,
-    listMerchants,
-  ]
+  return [saveMerchant, findMerchantByName, listMerchants]
 }

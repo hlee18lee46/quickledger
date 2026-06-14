@@ -19,124 +19,150 @@ export function PromptCommandBox() {
   const { wallets } = useWallets()
   const ownerWallet = wallets[0]?.address
 
-  async function runAgent() {
-    if (!prompt.trim()) {
-      toast.error("Enter a prompt for the agent to run.")
-      return
-    }
-
-    if (!ownerWallet) {
-      toast.error("Connect wallet first.")
-      return
-    }
-
-    try {
-      setRunning(true)
-      toast.loading("Agent is interpreting your request...", { id: "agent" })
-
-      const agentRes = await fetch("/api/agent", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          message: prompt,
-          userId: ownerWallet,
-          walletAddress: ownerWallet,
-        }),
-      })
-
-      const agentData = await agentRes.json()
-
-      if (!agentRes.ok || !agentData.success) {
-        throw new Error(agentData.error || "Agent failed")
-      }
-
-      const looksLikeInvoice = /invoice/i.test(prompt)
-      const looksLikePayment = /pay|send|eth|transfer/i.test(prompt)
-
-      if (looksLikeInvoice) {
-        toast.success("Invoice drafted — preview ready", { id: "agent" })
-        setShowInvoice(true)
-        return
-      }
-
-      if (!looksLikePayment) {
-        toast.success(agentData.reply || "Agent completed the task", {
-          id: "agent",
-        })
-        return
-      }
-
-      toast.warning("Payment prepared — checking Ledger approval...", {
-        id: "agent",
-      })
-
-      const pendingRes = await fetch(
-        `/api/payments/pending?userId=${encodeURIComponent(ownerWallet)}`
-      )
-      const pendingData = await pendingRes.json()
-      const payment = pendingData.payment
-
-      if (!payment) {
-        toast.success(agentData.reply || "Agent completed the task", {
-          id: "agent",
-        })
-        return
-      }
-
-      const approved = window.confirm(
-        `Approve with Ledger?\n\n` +
-          `Recipient: ${payment.counterpartyName}\n` +
-          `Wallet: ${payment.toWallet}\n` +
-          `Amount: ${payment.amount} ${payment.currency}\n` +
-          `Chain: ${payment.chain}\n\n` +
-          `This will prompt your Ledger Nano S Plus.`
-      )
-
-      if (!approved) {
-        toast.warning("Payment is still pending Ledger approval.", {
-          id: "agent",
-        })
-        return
-      }
-
-      toast.loading("Waiting for Ledger approval...", { id: "agent" })
-
-      const tx = await signAndBroadcastEthPaymentWithLedger({
-        to: payment.toWallet,
-        amountEth: String(payment.amount),
-        rpcUrl: process.env.NEXT_PUBLIC_SEPOLIA_RPC_URL!,
-      })
-
-      const confirmRes = await fetch("/api/payments/confirm", {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          paymentId: payment._id,
-          txHash: tx.txHash,
-          fromWallet: tx.from,
-        }),
-      })
-
-      const confirmData = await confirmRes.json()
-
-      if (!confirmRes.ok || !confirmData.success) {
-        throw new Error(confirmData.error || "Failed to save transaction")
-      }
-
-      toast.success(`Payment sent with Ledger: ${tx.txHash.slice(0, 10)}...`, {
-        id: "agent",
-      })
-    } catch (error: any) {
-      console.error(error)
-      toast.error(error.message || "Agent failed", { id: "agent" })
-    } finally {
-      setRunning(false)
-    }
+async function runAgent() {
+  if (!prompt.trim()) {
+    toast.error("Enter a prompt for the agent to run.")
+    return
   }
+
+  if (!ownerWallet) {
+    toast.error("Connect wallet first.")
+    return
+  }
+
+  try {
+    setRunning(true)
+
+    toast.loading("Agent is interpreting your request...", {
+      id: "agent",
+    })
+
+    const agentRes = await fetch("/api/agent", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        message: prompt,
+        userId: ownerWallet,
+        walletAddress: ownerWallet,
+      }),
+    })
+
+    const agentData = await agentRes.json()
+
+    console.log("Agent API response:", agentData)
+
+    if (!agentRes.ok || !agentData.success) {
+      throw new Error(agentData.error || "Agent failed")
+    }
+
+    const agentReply =
+      typeof agentData.reply === "string"
+        ? agentData.reply
+        : agentData.reply?.reply || "Agent completed the task"
+
+    const looksLikeInvoice = /invoice/i.test(prompt)
+    const looksLikePayment =
+  /\bpay\b|\bsend\b|\btransfer\b/i.test(prompt)
+
+    if (looksLikeInvoice) {
+      toast.success("Invoice drafted — preview ready", {
+        id: "agent",
+      })
+
+      setShowInvoice(true)
+      return
+    }
+
+    if (!looksLikePayment) {
+      toast.success(agentReply, {
+        id: "agent",
+      })
+      return
+    }
+
+    toast.warning("Payment prepared — checking Ledger approval...", {
+      id: "agent",
+    })
+
+    const pendingRes = await fetch(
+      `/api/payments/pending?userId=${encodeURIComponent(ownerWallet)}`
+    )
+
+    const pendingData = await pendingRes.json()
+    const payment = pendingData.payment
+
+    if (!payment) {
+      toast.success(agentReply, {
+        id: "agent",
+      })
+      return
+    }
+
+    const approved = window.confirm(
+      `Approve with Ledger?\n\n` +
+        `Recipient: ${payment.counterpartyName}\n` +
+        `ENS: ${payment.ensName || payment.approvalSummary?.ensName || "N/A"}\n` +
+        `Resolved Wallet: ${
+          payment.toWallet || payment.approvalSummary?.resolvedWallet
+        }\n` +
+        `Amount: ${payment.amount} ${payment.currency}\n` +
+        `Chain: ${payment.chain}\n\n` +
+        `This will prompt your Ledger Nano S Plus.`
+    )
+
+    if (!approved) {
+      toast.warning("Payment is still pending Ledger approval.", {
+        id: "agent",
+      })
+      return
+    }
+
+    toast.loading("Waiting for Ledger approval...", {
+      id: "agent",
+    })
+
+    const tx = await signAndBroadcastEthPaymentWithLedger({
+      to: payment.toWallet,
+      amountEth: String(payment.amount),
+      rpcUrl: process.env.NEXT_PUBLIC_SEPOLIA_RPC_URL!,
+    })
+
+    const confirmRes = await fetch("/api/payments/confirm", {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        paymentId: payment._id,
+        txHash: tx.txHash,
+        fromWallet: tx.from,
+      }),
+    })
+
+    const confirmData = await confirmRes.json()
+
+    if (!confirmRes.ok || !confirmData.success) {
+      throw new Error(confirmData.error || "Failed to save transaction")
+    }
+
+    toast.success(
+      `Payment sent with Ledger: ${tx.txHash.slice(0, 10)}...`,
+      {
+        id: "agent",
+      }
+    )
+  } catch (error: any) {
+    console.error(error)
+
+    toast.error(error.message || "Agent failed", {
+      id: "agent",
+    })
+  } finally {
+    setRunning(false)
+  }
+}
 
   return (
     <Card className="gap-0 overflow-hidden border-border p-0">
@@ -181,25 +207,9 @@ export function PromptCommandBox() {
             Run Agent
           </Button>
 
-          <Button
-            variant="outline"
-            onClick={() =>
-              toast.success("Blink deposit initiated — wallet will be funded shortly")
-            }
-          >
-            <Zap data-icon="inline-start" />
-            Fund with Blink
-          </Button>
 
-          <Button
-            variant="outline"
-            onClick={() =>
-              toast.success("Ledger will prompt when you approve a payment.")
-            }
-          >
-            <ShieldCheck data-icon="inline-start" />
-            Connect Ledger
-          </Button>
+
+
         </div>
       </div>
 

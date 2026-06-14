@@ -8,6 +8,7 @@ export interface Merchant {
   id: string
   name: string
   email: string
+  ensName?: string
   walletAddress: string
   notes: string
 }
@@ -16,6 +17,7 @@ export interface Customer {
   id: string
   name: string
   email: string
+  ensName?: string
   walletAddress: string
   notes: string
 }

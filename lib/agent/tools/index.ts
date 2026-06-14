@@ -9,6 +9,7 @@ import { createInvoiceTools } from "./invoice-tools"
 import { createBillTools } from "./bill-tools"
 import { createPaymentTools } from "./payment-tools"
 import { createDashboardTools } from "./dashboard-tools"
+import { createENSTools } from "./ens-tools"
 
 export function createQuickLedgerTools(context: ToolContext) {
   return [
@@ -18,5 +19,6 @@ export function createQuickLedgerTools(context: ToolContext) {
     ...createBillTools(context),
     ...createPaymentTools(context),
     ...createDashboardTools(context),
+    ...createENSTools(context),
   ]
 }

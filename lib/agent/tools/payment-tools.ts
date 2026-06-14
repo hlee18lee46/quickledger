@@ -1,17 +1,64 @@
 import { tool } from "@langchain/core/tools"
 import { z } from "zod"
+import { JsonRpcProvider } from "ethers"
 import clientPromise from "@/lib/mongodb"
 import type { ToolContext } from "./index"
+
+const provider = new JsonRpcProvider(process.env.MAINNET_RPC_URL)
 
 async function getDb() {
   const client = await clientPromise
   return client.db("quickledgerbooks")
 }
 
+async function resolveEnsName(ensName: string) {
+  if (!ensName || !ensName.endsWith(".eth")) return null
+  return provider.resolveName(ensName)
+}
+
 export function createPaymentTools(context: ToolContext) {
   const preparePayment = tool(
-    async ({ merchantName, toWallet, amount, currency, chain, reason }) => {
+    async ({ merchantName, toWallet, ensName, amount, currency, chain, reason }) => {
       const db = await getDb()
+
+      const merchant = await db.collection("merchants").findOne({
+        userId: context.userId,
+        name: {
+          $regex: `^${merchantName}$`,
+          $options: "i",
+        },
+      })
+
+      const merchantEnsName = ensName || merchant?.ensName || ""
+      const fallbackWallet = toWallet || merchant?.walletAddress || ""
+
+      let resolvedWallet = fallbackWallet
+      let ensResolved = false
+
+let ensResolutionError = ""
+
+if (merchantEnsName) {
+  try {
+    const resolved = await resolveEnsName(merchantEnsName)
+
+    if (resolved) {
+      resolvedWallet = resolved
+      ensResolved = true
+    }
+  } catch (error: any) {
+    ensResolutionError = error?.message || "ENS resolution failed"
+    console.warn("ENS resolution failed, using fallback wallet:", ensResolutionError)
+  }
+}
+
+      if (!resolvedWallet) {
+        return JSON.stringify({
+          success: false,
+          error: "No wallet address or resolvable ENS name found for merchant.",
+          merchantName,
+          ensName: merchantEnsName,
+        })
+      }
 
       const previousPayments = await db
         .collection("payments")
@@ -35,29 +82,35 @@ export function createPaymentTools(context: ToolContext) {
             ? "medium"
             : "low"
 
-      const approvalSummary = {
-        merchantName,
-        toWallet,
-        amount,
-        currency,
-        chain,
-        reason,
-        previousPaymentCount: previousPayments.length,
-        totalPaidBefore,
-        riskLevel,
-        ledgerRequired: true,
-        explanation:
-          previousPayments.length === 0
-            ? "This is the first recorded payment to this merchant. Please verify the wallet address on your Ledger."
-            : `You have paid this merchant ${previousPayments.length} time(s) before. Verify amount and wallet address on Ledger before approving.`,
-      }
+const approvalSummary = {
+  merchantName,
+  ensName: merchantEnsName,
+  ensResolved,
+  resolvedWallet,
+  fallbackWallet,
+  ensResolutionError,
+  amount,
+  currency,
+  chain,
+  reason,
+  previousPaymentCount: previousPayments.length,
+  totalPaidBefore,
+  riskLevel,
+  ledgerRequired: true,
+  explanation:
+    previousPayments.length === 0
+      ? "This is the first recorded payment to this merchant. Please verify the ENS name and resolved wallet address on your Ledger."
+      : `You have paid this merchant ${previousPayments.length} time(s) before. Verify ENS name, amount, and wallet address on Ledger before approving.`,
+}
 
       const payment = {
         userId: context.userId,
         type: "outgoing",
         counterpartyType: "merchant",
         counterpartyName: merchantName,
-        toWallet: toWallet || "",
+        ensName: merchantEnsName,
+        toWallet: resolvedWallet,
+        fallbackWallet,
         amount,
         currency,
         chain,
@@ -84,10 +137,11 @@ export function createPaymentTools(context: ToolContext) {
     {
       name: "prepare_payment",
       description:
-        "Prepare an outgoing crypto payment with merchant history and risk summary. Never sends funds. Requires Ledger approval.",
+        "Prepare an outgoing crypto payment. If the merchant has an ENS name or user provides an ENS name, resolve it and use the resolved wallet address before Ledger approval.",
       schema: z.object({
         merchantName: z.string(),
         toWallet: z.string().optional(),
+        ensName: z.string().optional(),
         amount: z.number(),
         currency: z.string(),
         chain: z.string(),
