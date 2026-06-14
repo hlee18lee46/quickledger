@@ -38,9 +38,7 @@ import {
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/dashboard/merchants", label: "Merchants", icon: Store },
-  { href: "/dashboard/customers", label: "Customers", icon: Users },
-  { href: "/dashboard/invoices", label: "Invoices", icon: FileText },
-  { href: "/dashboard/bills", label: "Bills", icon: ReceiptText },
+  { href: "/dashboard/bills", label: "Expenses", icon: ReceiptText },
   { href: "/dashboard/payments", label: "Payments", icon: ArrowLeftRight },
   { href: "/dashboard/receipts", label: "Receipts", icon: ScrollText },
   { href: "/dashboard/agent-logs", label: "Agent Logs", icon: BotMessageSquare },
